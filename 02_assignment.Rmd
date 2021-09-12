@@ -23,8 +23,9 @@ theme_set(theme_minimal()) # Lisa's favorite theme
 ```{r data}
 #hotels <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-02-11/hotels.csv')
 ```
+
 ```{r}
-hotels <- read.csv("C:/Users/kates/OneDrive/Desktop/Advanced_data_science/hotels.csv")
+hotels <- read.csv("hotels.csv")
 ```
 
 
