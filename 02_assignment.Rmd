@@ -45,22 +45,40 @@ Read through and follow along with the [Machine Learning review with an intro to
 **Tasks**:
 
 1. Read about the hotel booking data, `hotels`, on the [Tidy Tuesday page](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-02-11/readme.md) it came from. There is also a link to an article from the original authors. The outcome we will be predicting is called `is_canceled`. 
-  - Without doing any analysis, what are some variables you think might be predictive and why?  
-  _ What are some problems that might exist with the data? You might think about how it was collected and who did the collecting.  
+  - Without doing any analysis, what are some variables you think might be predictive and why?  Previous cancellations, assigned room type I think will be predictive because potentially previoius cancellations might indicate that they are unsure of their travel date or don't have god organization. I also think that assigned room type would be a strong predictor of cancellations because people would want to switch their room type or are dissatisfied with the room they were assigned. 
+  
+  
+  _ What are some problems that might exist with the data? You might think about how it was collected and who did the collecting.  We are only looking at resort and city hotels which brings financial barrier to people who are even booking these hotels. Also, the resort hotel is most likely one part of a larger cost for a vacation. 
+  
+  
   - If we construct a model, what type of conclusions will be able to draw from it?  
+
+We will be able to see which predictors play the strongest driver for the outcome "is_canceled". We will be able to input data and determine if it will be canceled. 
   
 2. Create some exploratory plots or table summaries of the variables in the dataset. Be sure to also examine missing values or other interesting values. You may want to adjust the `fig.width` and `fig.height` in the code chunk options.  
 
+```{r, fig.heigth = 4, fig.width = 8}
+hotels %>%
+  select(where(is.numeric)) %>% 
+  pivot_longer(cols = everything(),
+               names_to = "variable", 
+               values_to = "value") %>% 
+  ggplot(aes(x = value)) +
+  geom_histogram(bins = 30) +
+  facet_wrap(vars(variable), 
+             scales = "free")
+```
+
 3. First, we will do a couple things to get the data ready. 
 
-* I did the following for you: made outcome a factor (needs to be that way for logistic regression), made all character variables factoors, removed the year variable and some reservation status variables, and removed cases with missing values (not NULLs but true missing values).
+* I did the following for you: made outcome a factor (needs to be that way for logistic regression), made all character variables factors, removed the year variable and some reservation status variables, and removed cases with missing values (not NULLs but true missing values).
 
 * You need to split the data into a training and test set, stratifying on the outcome variable, `is_canceled`. Since we have a lot of data, split the data 50/50 between training and test. I have already `set.seed()` for you. Be sure to use `hotels_mod` in the splitting.
 
 ```{r}
 hotels_mod <- hotels %>% 
-  mutate(is_canceled = as.factor(is_canceled)) %>% 
-  mutate(across(where(is.character), as.factor)) %>% 
+  mutate(is_canceled = as.factor(is_canceled)) %>% #creating as factor/binary variable
+  mutate(across(where(is.character), as.factor)) %>%  
   select(-arrival_date_year,
          -reservation_status,
          -reservation_status_date) %>% 
@@ -69,6 +87,13 @@ hotels_mod <- hotels %>%
   select(-n_miss_all)
 
 set.seed(494)
+
+hotels_split <- initial_split(hotels_mod, prop = 0.5)
+
+hotels_split
+
+hotel_training <- training(hotels_split)
+hotel_testing <- testing(hotels_split)
 ```
 
 4. In this next step, we are going to do the pre-processing. Usually, I won't tell you exactly what to do here, but for your first exercise, I'll tell you the steps. 
@@ -82,11 +107,60 @@ set.seed(494)
 * Create dummy variables for all factors/categorical predictor variables (make sure you have `-all_outcomes()` in this part!!).  
 * Use the `prep()` and `juice()` functions to apply the steps to the training data just to check that everything went as planned.
 
+```{r}
+
+hotels_recipe <- recipe(is_canceled ~., data = hotels_mod) %>%
+  step_mutate(children = ifelse(children > 1, 1, 0), 
+              babies = ifelse(babies > 1, 1, 0), 
+              previous_cancellations = ifelse(previous_cancellations > 1, 1, 0)) %>%
+  step_mutate(agent = ifelse(agent == "NULL", 1, 0), 
+              company = ifelse(company == "NULL", 1, 0)) %>%
+  step_mutate(country = fct_lump_n(country, n = 5, w = NULL, other_level = "Other")) %>%
+  step_normalize(all_predictors(), 
+                 -all_nominal()) %>% 
+  step_dummy(all_nominal(), 
+             -all_outcomes(), 
+             -has_role(match = "evaluative"))
+
+
+hotels_recipe %>%
+  prep(hotel_training) %>%
+  juice()
+  
+
+```
+
 5. In this step we will set up a LASSO model and workflow.
 
 * In general, why would we want to use LASSO instead of regular logistic regression? (HINT: think about what happens to the coefficients).  
+
+We would want to use a LASSO model instead of regular logistic regression because LASSO is able to shrink the coefficient all the way down to zero and selects for specific strong variables. 
+
+
 * Define the model type, set the engine, set the `penalty` argument to `tune()` as a placeholder, and set the mode.  
+
 * Create a workflow with the recipe and model.  
+
+```{r}
+
+
+hotel_lasso_mod <- 
+  linear_reg(mixture = 1) %>% 
+  set_engine("glmnet") %>% 
+  set_args(penalty = tune()) %>% 
+  set_mode("regression")
+```
+
+
+```{r}
+hotel_lasso_wf <-
+  workflow() %>%
+  add_recipe(hotels_recipe) %>%
+  add_model(hotel_lasso_mod)
+
+hotel_lasso_wf
+  
+```
 
 6. In this step, we'll tune the model and fit the model using the best tuning parameter to the entire training dataset.
 
@@ -97,17 +171,103 @@ set.seed(494)
 * Use the `select_best()` function to find the best tuning parameter, fit the model using that tuning parameter to the entire training set (HINT: `finalize_workflow()` and `fit()`), and display the model results using `pull_workflow_fit()` and `tidy()`. Are there some variables with coefficients of 0?
 
 ```{r}
+set.seed(1112)
+hotel_cv <- vfold_cv(hotel_training, v = 5)
+```
+
+
+```{r}
 set.seed(494) # for reproducibility
 
 
+penalty_grid <- grid_regular(penalty(),
+                             levels = 10)
+penalty_grid 
+
+
+hotel_lasso_tune <- 
+  hotel_lasso_wf %>% 
+  tune_grid(
+    resamples = hotel_cv,
+    grid = penalty_grid
+    )
+
+hotel_lasso_tune
+```
+```{r}
+house_lasso_tune %>% 
+  select(id, .metrics) %>% 
+  unnest(.metrics) %>% 
+  filter(.metric == "rmse")
+
+# rmse averaged over all folds:
+house_lasso_tune %>% 
+  collect_metrics() %>% 
+  filter(.metric == "rmse") 
+```
+
+```{r tune-viz}
+# Visualize rmse vs. penalty
+house_lasso_tune %>% 
+  collect_metrics() %>% 
+  filter(.metric == "rmse") %>% 
+  ggplot(aes(x = penalty, y = mean)) +
+  geom_point() +
+  geom_line() +
+  scale_x_log10(
+   breaks = scales::trans_breaks("log10", function(x) 10^x),
+   labels = scales::trans_format("log10",scales::math_format(10^.x))) +
+  labs(x = "penalty", y = "rmse")
+```
+
+We choose the best penalty parameter as the one with the smallest cross-validated RMSE. The `select_best()` function does this. 
+
+```{r}
+house_lasso_tune %>% 
+  show_best(metric = "rmse")
+```
+
+```{r tune_wf}
+house_lasso_final_wf <- house_lasso_wf %>% 
+  finalize_workflow(one_se_param)
+house_lasso_final_wf
 ```
 
 
 7. Now that we have a model, let's evaluate it a bit more. All we have looked at so far is the cross-validated accuracy from the previous step. 
 
+
 * Create a variable importance graph. Which variables show up as the most important? Are you surprised?  
+```{r vip}
+# Visualize variable importance
+house_lasso_final_mod %>% 
+  pull_workflow_fit() %>% 
+  vip()
+```
 * Use the `last_fit()` function to fit the final model and then apply it to the testing data. Report the metrics from the testing data using the `collet_metrics()` function. How do they compare to the cross-validated metrics?
-* Use the `collect_predictions()` function to find the predicted probabilities and classes for the test data. Save this to a new dataset called `preds`. Then, use the `conf_mat()` function from `dials` (part of `tidymodels`) to create a confusion matrix showing the predicted classes vs. the true classes. Compute the true positive rate (sensitivity), true negative rate (specificity), and accuracy. See this [Wikipedia](https://en.wikipedia.org/wiki/Confusion_matrix) reference if you (like me) tend to forget these definitions. Also keep in mind that a "positive" in this case is a cancellation (those are the 1's).    
+
+```{r lasso_test}
+# Fit model with best tuning parameter(s) to training data and apply to test data
+house_lasso_test <- house_lasso_final_wf %>% 
+  last_fit(house_split)
+
+# Metrics for model applied to test data
+house_lasso_test %>% 
+  collect_metrics()
+
+# Compare to regular linear regression results
+collect_metrics(house_lm_test)
+```
+
+* Use the `collect_predictions()` function to find the predicted probabilities and classes for the test data. Save this to a new dataset called `preds`. Then, use the `conf_mat()` function from `dials` (part of `tidymodels`) to create a confusion matrix showing the predicted classes vs. the true classes. Compute the true positive rate (sensitivity), true negative rate (specificity), and accuracy. See this [Wikipedia](https://en.wikipedia.org/wiki/Confusion_matrix) reference if you (like me) tend to forget these definitions. Also keep in mind that a "positive" in this case is a cancellation (those are the 1's).  
+
+```{r}
+hotel_lasso_test %>%
+  collect_predictions()
+
+
+```
+
 * Use the `preds` dataset you just created to create a density plot of the predicted probabilities of canceling (the variable is called `.pred_1`), filling by `is_canceled`. Use an `alpha = .5` and `color = NA` in the `geom_density()`. Answer these questions: 
 a. What would this graph look like for a model with an accuracy that was close to 1?  
 b. Our predictions are classified as canceled if their predicted probability of canceling is greater than .5. If we wanted to have a high true positive rate, should we make the cutoff for predicted as canceled higher or lower than .5?  
@@ -123,8 +283,16 @@ c. What happens to the true negative rate if we try to get a higher true positiv
 
 Read [Chapter 1: The Power Chapter](https://data-feminism.mitpress.mit.edu/pub/vi8obxh7/release/4) of Data Feminism by Catherine D'Ignazio and Lauren Klein. Write a 4-6 sentence paragraph reflecting on this chapter. As you reflect, you might consider responding to these specific questions. We will also have a discussion about these questions in class on Thursday.
 
-* At the end of the "Matrix of Domination" section, they encourage us to "ask uncomfortable questions: who is doing the work of data science (and who is not)? Whose goals are prioritized in data science (and whose are not)? And who benefits from data science (and who is either overlooked or actively harmed)?" In general, how would you answer these questions? And why are they important?  
+I found this chapter to be very eye opening in relation to the motivations behind data science and data collection and the intentional or unintentional impacts of bias on data collection. I was really impacted by the section on the data correlation between being lower income and  
+
+* At the end of the "Matrix of Domination" section, they encourage us to "ask uncomfortable questions: who is doing the work of data science (and who is not)? Whose goals are prioritized in data science (and whose are not)? And who benefits from data science (and who is either overlooked or actively harmed)?" In general, how would you answer these questions? And why are they important? 
+
+I think that that the article had a really good summation of the motivations for data science, "science, surveillance, and selling". 
+
+
 * Can you think of any examples of missing datasets, like those described in the "Data Science for Whom?" section? Or was there an example there that surprised you?  
+
+
 * How did the examples in the "Data Science with Whose Interests and Goals?" section make you feel? What responsibility do companies have to prevent these things from occurring? Who is to blame?
 
 
