@@ -48,7 +48,9 @@ Read through and follow along with the [Machine Learning review with an intro to
   - Without doing any analysis, what are some variables you think might be predictive and why?  Previous cancellations, assigned room type I think will be predictive because potentially previoius cancellations might indicate that they are unsure of their travel date or don't have god organization. I also think that assigned room type would be a strong predictor of cancellations because people would want to switch their room type or are dissatisfied with the room they were assigned. 
   
   
-  _ What are some problems that might exist with the data? You might think about how it was collected and who did the collecting.  We are only looking at resort and city hotels which brings financial barrier to people who are even booking these hotels. Also, the resort hotel is most likely one part of a larger cost for a vacation. 
+  _ What are some problems that might exist with the data? You might think about how it was collected and who did the collecting.  
+  
+  We are only looking at resort and city hotels which brings financial barrier to people who are even booking these hotels. Also, the resort hotel is most likely one part of a larger cost for a vacation. 
   
   
   - If we construct a model, what type of conclusions will be able to draw from it?  
@@ -109,22 +111,21 @@ hotel_testing <- testing(hotels_split)
 
 ```{r}
 
-hotels_recipe <- recipe(is_canceled ~., data = hotels_mod) %>%
-  step_mutate(children = ifelse(children > 1, 1, 0), 
-              babies = ifelse(babies > 1, 1, 0), 
-              previous_cancellations = ifelse(previous_cancellations > 1, 1, 0)) %>%
-  step_mutate(agent = ifelse(agent == "NULL", 1, 0), 
-              company = ifelse(company == "NULL", 1, 0)) %>%
-  step_mutate(country = fct_lump_n(country, n = 5, w = NULL, other_level = "Other")) %>%
+hotels_recipe <- recipe(is_canceled ~., data = hotel_training) %>%
+  step_mutate_at(children, babies, previous_cancellations, fn = ~ as.numeric(. > 0)) %>%
+  step_mutate_at(agent, company, fn = ~ as.numeric(. == "NULL")) %>%
+  step_mutate(lump_country = fct_lump_n(country, n = 5, w = NULL, other_level = "Other")) %>%
+  step_rm(country) %>%
   step_normalize(all_predictors(), 
-                 -all_nominal()) %>% 
+                 -all_nominal(), 
+                 -all_outcomes()) %>% 
   step_dummy(all_nominal(), 
              -all_outcomes(), 
-             -has_role(match = "evaluative"))
+             -has_role(match = "evaluative")) #has_role not included in instructions
 
 
 hotels_recipe %>%
-  prep(hotel_training) %>%
+  prep() %>%
   juice()
   
 
@@ -143,14 +144,21 @@ We would want to use a LASSO model instead of regular logistic regression becaus
 
 ```{r}
 
-
 hotel_lasso_mod <- 
-  linear_reg(mixture = 1) %>% 
+  logistic_reg(mixture = 1) %>% 
   set_engine("glmnet") %>% 
   set_args(penalty = tune()) %>% 
-  set_mode("regression")
+  set_mode("classification")
+
 ```
 
+```{r}
+hotel_lasso_reg <- 
+  linear_reg(mixture = 1) %>%
+  set_engine("glmnet") %>%
+  set_args(penalty = tune()) %>%
+  set_mode("regression")
+```
 
 ```{r}
 hotel_lasso_wf <-
@@ -168,10 +176,10 @@ hotel_lasso_wf
 * Use the `grid_regular()` function to create a grid of 10 potential penalty parameters (we're keeping this sort of small because the dataset is pretty large). Use that with the 5-fold cv data to tune the model.  
 * Use the `tune_grid()` function to fit the models with different tuning parameters to the different cross-validation sets.  
 * Use the `collect_metrics()` function to collect all the metrics from the previous step and create a plot with the accuracy on the y-axis and the penalty term on the x-axis. Put the x-axis on the log scale.  
-* Use the `select_best()` function to find the best tuning parameter, fit the model using that tuning parameter to the entire training set (HINT: `finalize_workflow()` and `fit()`), and display the model results using `pull_workflow_fit()` and `tidy()`. Are there some variables with coefficients of 0?
+
 
 ```{r}
-set.seed(1112)
+set.seed(494)
 hotel_cv <- vfold_cv(hotel_training, v = 5)
 ```
 
@@ -182,9 +190,11 @@ set.seed(494) # for reproducibility
 
 penalty_grid <- grid_regular(penalty(),
                              levels = 10)
-penalty_grid 
+penalty_grid
+```
 
 
+```{r}
 hotel_lasso_tune <- 
   hotel_lasso_wf %>% 
   tune_grid(
@@ -194,23 +204,24 @@ hotel_lasso_tune <-
 
 hotel_lasso_tune
 ```
+
 ```{r}
-house_lasso_tune %>% 
+hotel_lasso_tune %>% 
   select(id, .metrics) %>% 
   unnest(.metrics) %>% 
-  filter(.metric == "rmse")
+  filter(.metric == "accuracy")
 
 # rmse averaged over all folds:
-house_lasso_tune %>% 
+hotel_lasso_tune %>% 
   collect_metrics() %>% 
-  filter(.metric == "rmse") 
+  filter(.metric == "accuracy") 
 ```
 
 ```{r tune-viz}
 # Visualize rmse vs. penalty
-house_lasso_tune %>% 
+hotel_lasso_tune %>% 
   collect_metrics() %>% 
-  filter(.metric == "rmse") %>% 
+  filter(.metric == "accuracy") %>% 
   ggplot(aes(x = penalty, y = mean)) +
   geom_point() +
   geom_line() +
@@ -223,14 +234,15 @@ house_lasso_tune %>%
 We choose the best penalty parameter as the one with the smallest cross-validated RMSE. The `select_best()` function does this. 
 
 ```{r}
-house_lasso_tune %>% 
-  show_best(metric = "rmse")
+hotel_lasso_tune %>% 
+  show_best(metric = "accuracy")
 ```
+* Use the `select_best()` function to find the best tuning parameter, fit the model using that tuning parameter to the entire training set (HINT: `finalize_workflow()` and `fit()`), and display the model results using `pull_workflow_fit()` and `tidy()`. Are there some variables with coefficients of 0?
 
 ```{r tune_wf}
-house_lasso_final_wf <- house_lasso_wf %>% 
+hotel_lasso_final_wf <- hotel_lasso_wf %>% ###WRONG CODE DO NOT USE ES ESE
   finalize_workflow(one_se_param)
-house_lasso_final_wf
+hotel_lasso_final_wf
 ```
 
 
@@ -240,7 +252,7 @@ house_lasso_final_wf
 * Create a variable importance graph. Which variables show up as the most important? Are you surprised?  
 ```{r vip}
 # Visualize variable importance
-house_lasso_final_mod %>% 
+hotel_lasso_final_mod %>% 
   pull_workflow_fit() %>% 
   vip()
 ```
@@ -248,27 +260,35 @@ house_lasso_final_mod %>%
 
 ```{r lasso_test}
 # Fit model with best tuning parameter(s) to training data and apply to test data
-house_lasso_test <- house_lasso_final_wf %>% 
-  last_fit(house_split)
+hotel_lasso_test <- hotel_lasso_final_wf %>% 
+  last_fit(hotel_split)
 
 # Metrics for model applied to test data
-house_lasso_test %>% 
+hotel_lasso_test %>% 
   collect_metrics()
 
 # Compare to regular linear regression results
-collect_metrics(house_lm_test)
+collect_metrics(hotel_lm_test)
 ```
 
 * Use the `collect_predictions()` function to find the predicted probabilities and classes for the test data. Save this to a new dataset called `preds`. Then, use the `conf_mat()` function from `dials` (part of `tidymodels`) to create a confusion matrix showing the predicted classes vs. the true classes. Compute the true positive rate (sensitivity), true negative rate (specificity), and accuracy. See this [Wikipedia](https://en.wikipedia.org/wiki/Confusion_matrix) reference if you (like me) tend to forget these definitions. Also keep in mind that a "positive" in this case is a cancellation (those are the 1's).  
 
 ```{r}
-hotel_lasso_test %>%
+preds <- hotel_lasso_test %>%
   collect_predictions()
 
+conf_mat() 
 
 ```
 
 * Use the `preds` dataset you just created to create a density plot of the predicted probabilities of canceling (the variable is called `.pred_1`), filling by `is_canceled`. Use an `alpha = .5` and `color = NA` in the `geom_density()`. Answer these questions: 
+
+```{r}
+preds %>%
+  ggplot(aes(x = is_canceled, alpha = 0.5, color = NA)) + geom_density()
+  
+```
+
 a. What would this graph look like for a model with an accuracy that was close to 1?  
 b. Our predictions are classified as canceled if their predicted probability of canceling is greater than .5. If we wanted to have a high true positive rate, should we make the cutoff for predicted as canceled higher or lower than .5?  
 c. What happens to the true negative rate if we try to get a higher true positive rate? 
