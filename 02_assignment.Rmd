@@ -152,13 +152,6 @@ hotel_lasso_mod <-
 
 ```
 
-```{r}
-hotel_lasso_reg <- 
-  linear_reg(mixture = 1) %>%
-  set_engine("glmnet") %>%
-  set_args(penalty = tune()) %>%
-  set_mode("regression")
-```
 
 ```{r}
 hotel_lasso_wf <-
@@ -174,8 +167,7 @@ hotel_lasso_wf
 
 * Create a 5-fold cross-validation sample. We'll use this later. I have set the seed for you.  
 * Use the `grid_regular()` function to create a grid of 10 potential penalty parameters (we're keeping this sort of small because the dataset is pretty large). Use that with the 5-fold cv data to tune the model.  
-* Use the `tune_grid()` function to fit the models with different tuning parameters to the different cross-validation sets.  
-* Use the `collect_metrics()` function to collect all the metrics from the previous step and create a plot with the accuracy on the y-axis and the penalty term on the x-axis. Put the x-axis on the log scale.  
+ 
 
 
 ```{r}
@@ -192,6 +184,7 @@ penalty_grid <- grid_regular(penalty(),
                              levels = 10)
 penalty_grid
 ```
+* Use the `tune_grid()` function to fit the models with different tuning parameters to the different cross-validation sets.  
 
 
 ```{r}
@@ -210,15 +203,18 @@ hotel_lasso_tune %>%
   select(id, .metrics) %>% 
   unnest(.metrics) %>% 
   filter(.metric == "accuracy")
+```
 
-# rmse averaged over all folds:
+* Use the `collect_metrics()` function to collect all the metrics from the previous step and create a plot with the accuracy on the y-axis and the penalty term on the x-axis. Put the x-axis on the log scale. 
+
+```{r}
 hotel_lasso_tune %>% 
   collect_metrics() %>% 
   filter(.metric == "accuracy") 
 ```
 
 ```{r tune-viz}
-# Visualize rmse vs. penalty
+# Visualize accuracy vs. penalty
 hotel_lasso_tune %>% 
   collect_metrics() %>% 
   filter(.metric == "accuracy") %>% 
@@ -228,7 +224,7 @@ hotel_lasso_tune %>%
   scale_x_log10(
    breaks = scales::trans_breaks("log10", function(x) 10^x),
    labels = scales::trans_format("log10",scales::math_format(10^.x))) +
-  labs(x = "penalty", y = "rmse")
+  labs(x = "penalty", y = "accuracy")
 ```
 
 We choose the best penalty parameter as the one with the smallest cross-validated RMSE. The `select_best()` function does this. 
@@ -236,13 +232,31 @@ We choose the best penalty parameter as the one with the smallest cross-validate
 ```{r}
 hotel_lasso_tune %>% 
   show_best(metric = "accuracy")
+
+best_lasso_tune <- hotel_lasso_tune %>%
+  select_best(metric = "accuracy")
+
+best_lasso_tune
 ```
+
 * Use the `select_best()` function to find the best tuning parameter, fit the model using that tuning parameter to the entire training set (HINT: `finalize_workflow()` and `fit()`), and display the model results using `pull_workflow_fit()` and `tidy()`. Are there some variables with coefficients of 0?
 
-```{r tune_wf}
-hotel_lasso_final_wf <- hotel_lasso_wf %>% ###WRONG CODE DO NOT USE ES ESE
-  finalize_workflow(one_se_param)
-hotel_lasso_final_wf
+```{r}
+hotel_final_wf <- hotel_lasso_wf %>%
+  finalize_workflow(best_lasso_tune)
+
+hotel_final_wf
+```
+
+
+```{r}
+hotel_final_model <- hotel_final_wf %>%
+  fit(hotel_training)
+
+hotel_final_model %>%
+  extract_fit_parsnip() %>%
+  tidy()
+
 ```
 
 
@@ -252,23 +266,22 @@ hotel_lasso_final_wf
 * Create a variable importance graph. Which variables show up as the most important? Are you surprised?  
 ```{r vip}
 # Visualize variable importance
-hotel_lasso_final_mod %>% 
-  pull_workflow_fit() %>% 
+hotel_final_model %>% 
+  extract_fit_parsnip() %>% 
   vip()
 ```
+
 * Use the `last_fit()` function to fit the final model and then apply it to the testing data. Report the metrics from the testing data using the `collet_metrics()` function. How do they compare to the cross-validated metrics?
 
 ```{r lasso_test}
 # Fit model with best tuning parameter(s) to training data and apply to test data
-hotel_lasso_test <- hotel_lasso_final_wf %>% 
-  last_fit(hotel_split)
+hotel_lasso_test <- hotel_final_wf %>% 
+  last_fit(hotels_split)
 
 # Metrics for model applied to test data
 hotel_lasso_test %>% 
   collect_metrics()
 
-# Compare to regular linear regression results
-collect_metrics(hotel_lm_test)
 ```
 
 * Use the `collect_predictions()` function to find the predicted probabilities and classes for the test data. Save this to a new dataset called `preds`. Then, use the `conf_mat()` function from `dials` (part of `tidymodels`) to create a confusion matrix showing the predicted classes vs. the true classes. Compute the true positive rate (sensitivity), true negative rate (specificity), and accuracy. See this [Wikipedia](https://en.wikipedia.org/wiki/Confusion_matrix) reference if you (like me) tend to forget these definitions. Also keep in mind that a "positive" in this case is a cancellation (those are the 1's).  
@@ -277,26 +290,47 @@ collect_metrics(hotel_lm_test)
 preds <- hotel_lasso_test %>%
   collect_predictions()
 
-conf_mat() 
+preds
+
+conf_mat(preds, is_canceled, .pred_class) 
 
 ```
+
+True positive: 0.809
+True negative: 0.815
+accuracy: 0.814
+
+0 = no 
+1 = yes 
+
 
 * Use the `preds` dataset you just created to create a density plot of the predicted probabilities of canceling (the variable is called `.pred_1`), filling by `is_canceled`. Use an `alpha = .5` and `color = NA` in the `geom_density()`. Answer these questions: 
 
 ```{r}
 preds %>%
-  ggplot(aes(x = is_canceled, alpha = 0.5, color = NA)) + geom_density()
+  ggplot(aes(x = .pred_1, fill = is_canceled)) + geom_density( alpha = 0.5, color = NA)
   
 ```
 
-a. What would this graph look like for a model with an accuracy that was close to 1?  
+a. What would this graph look like for a model with an accuracy that was close to 1? 
+I our accuracy was close to one, there would barely be any overlap between the predicted 0 and 1 curves. 
+
 b. Our predictions are classified as canceled if their predicted probability of canceling is greater than .5. If we wanted to have a high true positive rate, should we make the cutoff for predicted as canceled higher or lower than .5?  
+
+If we wanted a high true positive rate, our cutoff for predicted as canceled to be higher than 0.5. 
+
 c. What happens to the true negative rate if we try to get a higher true positive rate? 
+
+Our true negative rate would be lower since we would potentially be classifying more things as negative since they wouldn't reach the cut off rate. 
 
 8. Let's say that this model is going to be applied to bookings 14 days in advance of their arrival at each hotel, and someone who works for the hotel will make a phone call to the person who made the booking. During this phone call, they will try to assure that the person will be keeping their reservation or that they will be canceling in which case they can do that now and still have time to fill the room. How should the hotel go about deciding who to call? How could they measure whether it was worth the effort to do the calling? Can you think of another way they might use the model? 
 
+The hotel should consider the people who have a high probability of canceling (look at features such as room type and refund options), they could measure whether is was worth the effort to do the calling to 
+
+
 9. How might you go about questioning and evaluating the model in terms of fairness? Are there any questions you would like to ask of the people who collected the data? 
 
+I would ask more questions on the types of hotels that people are renting from, as resorts and large hotels attract a certain 
 
 
 ## Bias and Fairness
