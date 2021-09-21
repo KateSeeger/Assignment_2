@@ -37,6 +37,7 @@ From now on, GitHub should be part of your routine when doing assignments. I rec
 
 **Task**: When you are finished with the assignment, post a link below to the GitHub repo for the assignment. 
 
+[Repo Assignment 2](https://github.com/KateSeeger/Assignment_2.git)
 
 ## Machine Learning review and intro to `tidymodels`
 
@@ -50,8 +51,7 @@ Read through and follow along with the [Machine Learning review with an intro to
   
   _ What are some problems that might exist with the data? You might think about how it was collected and who did the collecting.  
   
-  We are only looking at resort and city hotels which brings financial barrier to people who are even booking these hotels. Also, the resort hotel is most likely one part of a larger cost for a vacation. 
-  
+  We are only looking at resort and city hotels which brings financial barrier to people who are even booking these hotels. Also, the resort hotel is most likely one part of a larger cost for a vacation. I'm also curious on if people were informed that this data was being collected. This data also seems skewed towards people who are able to afford these types of amenities. 
   
   - If we construct a model, what type of conclusions will be able to draw from it?  
 
@@ -198,12 +198,7 @@ hotel_lasso_tune <-
 hotel_lasso_tune
 ```
 
-```{r}
-hotel_lasso_tune %>% 
-  select(id, .metrics) %>% 
-  unnest(.metrics) %>% 
-  filter(.metric == "accuracy")
-```
+
 
 * Use the `collect_metrics()` function to collect all the metrics from the previous step and create a plot with the accuracy on the y-axis and the penalty term on the x-axis. Put the x-axis on the log scale. 
 
@@ -313,11 +308,11 @@ preds %>%
 ```
 
 a. What would this graph look like for a model with an accuracy that was close to 1? 
-I our accuracy was close to one, there would barely be any overlap between the predicted 0 and 1 curves. 
+If our accuracy was close to one, there would barely be any overlap between the predicted 0 and 1 curves. 
 
 b. Our predictions are classified as canceled if their predicted probability of canceling is greater than .5. If we wanted to have a high true positive rate, should we make the cutoff for predicted as canceled higher or lower than .5?  
 
-If we wanted a high true positive rate, our cutoff for predicted as canceled to be higher than 0.5. 
+If we wanted a high true positive rate, our cutoff for predicted as canceled needs to be higher than 0.5. 
 
 c. What happens to the true negative rate if we try to get a higher true positive rate? 
 
@@ -350,5 +345,5 @@ I think that a huge missing dataset is on indigenous, homeless, renting populati
 
 * How did the examples in the "Data Science with Whose Interests and Goals?" section make you feel? What responsibility do companies have to prevent these things from occurring? Who is to blame?
 
-I think that companies have a huge resonsibility in preventing these things from occuring as they are the ones who are monetarily benefitting from exploitation. I think everyone is to blame, but especially the project team and HR and public relations teams are all at fault. 
+I think that companies have a huge responsibility in preventing these things from occurring as they are the ones who are monetarily benefiting from exploitation. I think everyone is to blame, but especially the project team and HR and public relations teams are all at fault. 
 
