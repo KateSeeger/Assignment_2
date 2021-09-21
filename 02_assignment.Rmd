@@ -325,28 +325,30 @@ Our true negative rate would be lower since we would potentially be classifying 
 
 8. Let's say that this model is going to be applied to bookings 14 days in advance of their arrival at each hotel, and someone who works for the hotel will make a phone call to the person who made the booking. During this phone call, they will try to assure that the person will be keeping their reservation or that they will be canceling in which case they can do that now and still have time to fill the room. How should the hotel go about deciding who to call? How could they measure whether it was worth the effort to do the calling? Can you think of another way they might use the model? 
 
-The hotel should consider the people who have a high probability of canceling (look at features such as room type and refund options), they could measure whether is was worth the effort to do the calling to 
+The hotel should consider the people who have a high probability of canceling (look at features such as room type and refund options), they could measure whether is was worth the effort to do the calling by recording the outcome of the call. I think that this model could be used to see what things they could change about their service and see what features people find important and how those features determine a person's chance of canceling. 
 
 
 9. How might you go about questioning and evaluating the model in terms of fairness? Are there any questions you would like to ask of the people who collected the data? 
 
-I would ask more questions on the types of hotels that people are renting from, as resorts and large hotels attract a certain 
+I would ask more questions on the types of hotels that people are renting from, as resorts and large hotels attract a certain demographic of those who can afford those types of trips and rooms. 
 
 
 ## Bias and Fairness
 
 Read [Chapter 1: The Power Chapter](https://data-feminism.mitpress.mit.edu/pub/vi8obxh7/release/4) of Data Feminism by Catherine D'Ignazio and Lauren Klein. Write a 4-6 sentence paragraph reflecting on this chapter. As you reflect, you might consider responding to these specific questions. We will also have a discussion about these questions in class on Thursday.
 
-I found this chapter to be very eye opening in relation to the motivations behind data science and data collection and the intentional or unintentional impacts of bias on data collection. I was really impacted by the section on the data correlation between being lower income and  
+I found this chapter to be very eye opening in relation to the motivations behind data science and data collection and the intentional or unintentional impacts of bias on data collection. I was really impacted by the section on the data correlation between being lower income and predicted child abuse/safety. I feel like I still had a perception of data science as unbiased and from a computer, but it is good to remember that someone is programing that machine and people are intentionally and unintentionally biased. You many have good intentions with a machine learning model, but the acutal impacts can be much greater than anticipated.  
 
 * At the end of the "Matrix of Domination" section, they encourage us to "ask uncomfortable questions: who is doing the work of data science (and who is not)? Whose goals are prioritized in data science (and whose are not)? And who benefits from data science (and who is either overlooked or actively harmed)?" In general, how would you answer these questions? And why are they important? 
 
-I think that that the article had a really good summation of the motivations for data science, "science, surveillance, and selling". 
+I think that that the article had a really good summation of the motivations for data science, "science, surveillance, and selling". The goals of the researchers or the people doing the study are the people's whose goals are prioritized in this data science. People who benefit from data science are usually people in power and demographics of people in places of privilege in our society. Privilege can be blinding and people don't see the impacts of these studies. Huge corporations benefit from data science, research benefits from data science, and many people are overlook at can be exploited by data science. These questions are important to ask, because it's hard to see things from the perspective of others, and there could be an unintentional impacts in the daily lives of people like in the targeted pregnancy ads and products. 
 
 
 * Can you think of any examples of missing datasets, like those described in the "Data Science for Whom?" section? Or was there an example there that surprised you?  
 
+I think that a huge missing dataset is on indigenous, homeless, renting populations in demographic surveys. I think that there is still a huge disparity in gender/sex differences in medicine that needs to be recorded. 
 
 * How did the examples in the "Data Science with Whose Interests and Goals?" section make you feel? What responsibility do companies have to prevent these things from occurring? Who is to blame?
 
+I think that companies have a huge resonsibility in preventing these things from occuring as they are the ones who are monetarily benefitting from exploitation. I think everyone is to blame, but especially the project team and HR and public relations teams are all at fault. 
 
